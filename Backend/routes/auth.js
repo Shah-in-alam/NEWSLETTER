@@ -1,16 +1,11 @@
-require('dotenv').config();
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
-const cors = require('cors');
-
 const prisma = new PrismaClient();
-const app = express();
 
-// Middleware
-app.use(express.json());  // To parse JSON request bodies
-app.use(cors());  // Enable CORS for all domains
+const app = express();
+app.use(express.json()); // Make sure this is here to parse JSON requests
 
 // Signup Route
 app.post('/signup', async (req, res) => {
@@ -22,13 +17,19 @@ app.post('/signup', async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Create a new user, saving the password hash in `passwordHash`
         const user = await prisma.user.create({
-            data: { username, email, password: hashedPassword }
+            data: { 
+                username, 
+                email, 
+                passwordHash: hashedPassword,  // `passwordHash` instead of `password`
+                createdAt: new Date()           // Make sure to set the `createdAt` field
+            }
         });
 
         res.json({ msg: 'User registered successfully', user });
     } catch (err) {
-        console.error(err); // Log error for debugging
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -37,23 +38,33 @@ app.post('/signup', async (req, res) => {
 app.post('/signin', async (req, res) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+        return res.status(400).json({ msg: 'Email and password are required' });
+    }
+
     try {
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(400).json({ msg: 'Invalid credentials' });
+        const user = await prisma.user.findUnique({
+            where: { email: email },
+        });
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ msg: 'Invalid credentials' });
+        if (!user) {
+            return res.status(400).json({ msg: 'Invalid credentials' });
+        }
 
-        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'your_jwt_secret', { expiresIn: '1h' });
+        // Compare password with the hashed one in the database
+        const isMatch = await bcrypt.compare(password, user.passwordHash);  // `passwordHash` instead of `password`
+        if (!isMatch) {
+            return res.status(400).json({ msg: 'Invalid credentials' });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'mySuperSecretKey123', { expiresIn: '1h' });
 
         res.json({ token });
     } catch (err) {
-        console.error(err); // Log error for debugging
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 });
 
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
+module.exports = app;  // Export the auth routes to use in app.js

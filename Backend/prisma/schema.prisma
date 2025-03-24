@@ -10,5 +10,12 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = "mysql://root:root@localhost:3306/aidb"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id          Int      @id @default(autoincrement())
+  username    String   @db.VarChar(255)
+  email       String   @unique @db.VarChar(255)
+  passwordHash String  @db.VarChar(255) // Password hash should match the column name in your database
+  createdAt   DateTime @db.DateTime
 }
