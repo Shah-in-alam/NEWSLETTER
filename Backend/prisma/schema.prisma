@@ -10,5 +10,5 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = "mysql:root:root@localhost://3306/Aidb"
+  url      = "mysql://root:root@localhost:3306/aidb"
 }
